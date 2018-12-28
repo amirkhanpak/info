@@ -1,0 +1,78 @@
+Few different approaches:
+
+-----------------------------------------------------------------------------------
+Easy way to create a C# lambda expression from a string (with Roslyn)
+https://github.com/dotnet/roslyn
+https://www.strathweb.com/2018/01/easy-way-to-create-a-c-lambda-expression-from-a-string-with-roslyn/
+
+Building LINQ Expressions by hand
+The traditional way to approach this problem, would be to try an build up a dynamic filter expression by hand. The following code creates the condition we need dynamically:
+var parameter = Expression.Parameter(typeof(Album), "album");
+var comparison = Expression.GreaterThan(Expression.Property(parameter, Type.GetType("ConsoleApp6.Album").GetProperty("Quantity")), Expression.Constant(100));
+Func<Album, bool> discountFilterExpression = Expression.Lambda<Func<Album, bool>>(comparison, parameter).Compile();
+var discountedAlbums = albums.Where(discountFilterExpression);
+//hooray now we have discountedAlbums!
+
+Building LINQ Expressions From string with Roslyn 
+The Nuget package to reference is called Microsoft.CodeAnalysis.CSharp.Scripting.
+https://www.nuget.org/packages/Microsoft.CodeAnalysis.CSharp.Scripting/
+
+var discountFilter = "album => album.Quantity > 0";
+var options = ScriptOptions.Default.AddReferences(typeof(Album).Assembly);
+Func<Album, bool> discountFilterExpression = await CSharpScript.EvaluateAsync<Func<Album, bool>>(discountFilter, options);
+var discountedAlbums = albums.Where(discountFilterExpression);
+//hooray now we have discountedAlbums!
+-----------------------------------------------------------------------------------
+
+https://stackoverflow.com/questions/16858347/parse-string-to-produce-predicate
+
+You could look into using the Dynamic Linq Library ScottGu has blogged about.
+
+This post is from: Tuesday, January 8, 2008
+http://weblogs.asp.net/scottgu/archive/2008/01/07/dynamic-linq-part-1-using-the-linq-dynamic-query-library.aspx
+http://msdn.microsoft.com/en-US/vstudio/bb894665.aspx
+
+if should let you do something like the following.
+
+const string exp = "variable > 30";
+var p = Expression.Parameter(typeof(int), "variable");
+var e = DynamicExpression.ParseLambda(new[] { p }, null, exp);
+
+bool a = (bool)e.Compile().DynamicInvoke(20);
+bool b = (bool)e.Compile().DynamicInvoke(40);
+or
+
+Func<int, bool> predicate = (Func<int, bool>)e.Compile();
+bool a = predicate(20);
+bool b = predicate(40);
+
+
+NOTE: Source code for LINQ Dynamic .Net CORE
+https://github.com/StefH/System.Linq.Dynamic.Core
+-----------------------------------------------------------------------------------
+
+Ther is a predicate builder also from Albahari
+http://www.albahari.com/nutshell/predicatebuilder.aspx
+But this is also not that effective
+
+Using PredicateBuilder
+Here's how to solve the preceding example with PredicateBuilder:
+
+IQueryable<Product> SearchProducts (params string[] keywords)
+{
+  var predicate = PredicateBuilder.False<Product>();
+
+  foreach (string keyword in keywords)
+  {
+    string temp = keyword;
+    predicate = predicate.Or (p => p.Description.Contains (temp));
+  }
+  return dataContext.Products.Where (predicate);
+}
+
+NOTE: If querying with Entity Framework, change the last line to this:
+return objectContext.Products.AsExpandable().Where (predicate);
+
+-----------------------------------------------------------------------------------
+
+
